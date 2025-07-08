@@ -9,5 +9,6 @@ library(shiny)
 library(rhandsontable)
 library(readr)
 library(openxlsx)
+library(plotly)
 
 load("data_prep.RData")

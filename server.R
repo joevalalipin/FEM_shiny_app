@@ -233,6 +233,8 @@ shinyServer(function(input, output, session) {
          file = "user_inputs.RData")
   
     source("load_user_inputs.R")
+    
+    # run FEM
     source("src/model_pipeline/2_preprocessing.R")
     source("src/model_pipeline/3.1_livestock.R")
     source("src/model_pipeline/3.2_fertiliser.R")
@@ -241,12 +243,31 @@ shinyServer(function(input, output, session) {
     # print(smry_all_annual_by_emission_type_df)
     # print(smry_all_annual_by_gas_df)
     
+    # display outputs
     output$Output_Smry_Type <- renderRHandsontable({
       rhandsontable(smry_all_annual_by_emission_type_df %>% select(-1,-2), rowHeaders = FALSE, readOnly = TRUE)
     })
     
+    output$plot_Output_Smry_Type <- renderPlotly({
+      smry_all_annual_by_emission_type_df %>% 
+        select(-1,-2) %>% 
+        gather(key = "type", value = "emissions in kg") %>% 
+        plot_ly(x = ~type, y = ~`emissions in kg`, type = "bar") %>% 
+        layout(xaxis = list(title = ""),
+               yaxis = list(title = ""))
+    })
+    
     output$Output_Smry_Gas <- renderRHandsontable({
       rhandsontable(smry_all_annual_by_gas_df %>% select(-1,-2), rowHeaders = FALSE, readOnly = TRUE)
+    })
+    
+    output$plot_Output_Smry_Gas <- renderPlotly({
+      smry_all_annual_by_gas_df %>% 
+        select(-1,-2) %>% 
+        gather(key = "type", value = "emissions in kg") %>% 
+        plot_ly(x = ~type, y = ~`emissions in kg`, type = "bar") %>% 
+        layout(xaxis = list(title = ""),
+               yaxis = list(title = ""))
     })
     
     # build the workbook and download results and inputs
