@@ -58,24 +58,11 @@ shinyServer(function(input, output, session) {
     data <- SuppFeed_DryMatter_df_default %>% 
       # pre-populate example
       bind_rows(SuppFeed_DryMatter_df_ex) %>% 
-      arrange(SupplementName)
+      arrange(Supplement)
     
     rhandsontable(data, rowHeaders = FALSE) %>%
-      hot_col("SupplementName", type = "dropdown", source = allowable_Supplementary_Feed, allowInvalid = FALSE) %>% 
-      hot_validate_numeric("Dry_Matter_t", min = 0, allowInvalid = FALSE)
-    
-  })
-  
-  output$SuppFeed_SectoralAllocation <- renderRHandsontable({
-    
-    data <- SuppFeed_SectoralAllocation_df_default %>% 
-      # pre-populate example
-      bind_rows(SuppFeed_SectoralAllocation_df_ex) %>% 
-      arrange(Sector)
-    
-    rhandsontable(data, rowHeaders = FALSE) %>%
-      hot_col("Sector", type = "dropdown", source = allowable_Sector, allowInvalid = FALSE) %>% 
-      hot_validate_numeric("SuppFeed_Allocation", min = 0, max = 1, allowInvalid = FALSE)
+      hot_col("Supplement", type = "dropdown", source = allowable_Supplementary_Feed, allowInvalid = FALSE) %>% 
+      hot_validate_numeric(c("Dry_Matter_t", "Beef_Allocation", "Dairy_Allocation", "Deer_Allocation", "Sheep_Allocation"), min = 0, allowInvalid = FALSE)
     
   })
   
@@ -92,12 +79,61 @@ shinyServer(function(input, output, session) {
     
   })
   
+  output$Breed_Allocation <- renderRHandsontable({
+    
+    data <- Breed_Allocation_df_default %>% 
+      # pre-populate example
+      bind_rows(Breed_Allocation_df_ex) %>% 
+      arrange(Sector)
+    
+    rhandsontable(data, rowHeaders = FALSE) %>% 
+      hot_col("Sector", type = "dropdown", source = allowable_Sector, allowInvalid = FALSE) %>% 
+      hot_col("Breed", type = "dropdown", source = allowable_StockClass, allowInvalid = FALSE) %>%
+      hot_validate_numeric("Breed_Allocation", min = 0, max = 1, allowInvalid = FALSE)
+    
+  })
+  
+  output$Effluent_Structure_Use <- renderRHandsontable({
+    
+    data <- Effluent_Structure_Use_df_default %>% 
+      # pre-populate example
+      bind_rows(Effluent_Structure_Use_df_ex) %>% 
+      arrange(Month)
+    
+    rhandsontable(data, rowHeaders = FALSE) %>% 
+      hot_col("Month", type = "dropdown", source = c(1:12), allowInvalid = FALSE) %>% 
+      hot_validate_numeric(c("Dairy_Shed_hrs_day", "Other_Structures_hrs_day"), min = 0, max = 24, allowInvalid = FALSE)
+    
+  })
+  
+  output$Effluent_EcoPond_Treatments <- renderRHandsontable({
+    
+    data <- Effluent_EcoPond_Treatments_df_default %>% 
+      # pre-populate example
+      bind_rows(Effluent_EcoPond_Treatments_df_ex) %>% 
+      arrange(Treatment_Date)
+    
+    rhandsontable(data, rowHeaders = FALSE) %>% 
+      hot_col("Treatment_Date", type = "date", dateFormat = "YYYY-MM-DD", validator = date_validator(), allowInvalid = FALSE)
+    
+  })
+  
+  output$BreedingValues <- renderRHandsontable({
+    
+    data <- BreedingValues_df_default
+    
+    rhandsontable(data, rowHeaders = FALSE) %>% 
+      hot_col("StockClass", type = "dropdown", source = allowable_StockClass, allowInvalid = FALSE) %>% 
+      hot_validate_numeric("BV_aCH4", min = -0.4, max = 1, allowInvalid = FALSE)
+    
+  })
+  
   output$Fertiliser <- renderRHandsontable({
     
     data <- Fertiliser_df_ex
     
     rhandsontable(data, rowHeaders = FALSE) %>% 
-      hot_validate_numeric(c("N_Urea_Coated_t", "N_Urea_Uncoated_t", "N_NonUrea_SyntheticFert_t"), min = 0, allowInvalid = FALSE)
+      hot_validate_numeric(c("N_Urea_Coated_t", "N_Urea_Uncoated_t", "N_NonUrea_SyntheticFert_t", "N_OrganicFert_t", "Lime_t", "Dolomite_t"), min = 0, allowInvalid = FALSE)
     
   })
 
@@ -139,15 +175,8 @@ shinyServer(function(input, output, session) {
     output$SuppFeed_DryMatter <- renderRHandsontable({
       data <- SuppFeed_DryMatter_df_default 
       rhandsontable(data, rowHeaders = FALSE) %>%
-        hot_col("SupplementName", type = "dropdown", source = allowable_Supplementary_Feed, allowInvalid = FALSE) %>% 
-        hot_validate_numeric("Dry_Matter_t", min = 0, allowInvalid = FALSE)
-    })
-    
-    output$SuppFeed_SectoralAllocation <- renderRHandsontable({
-      data <- SuppFeed_SectoralAllocation_df_default 
-      rhandsontable(data, rowHeaders = FALSE) %>%
-        hot_col("Sector", type = "dropdown", source = allowable_Sector, allowInvalid = FALSE) %>% 
-        hot_validate_numeric("SuppFeed_Allocation", min = 0, max = 1, allowInvalid = FALSE)
+        hot_col("Supplement", type = "dropdown", source = allowable_Supplementary_Feed, allowInvalid = FALSE) %>% 
+        hot_validate_numeric(c("Dry_Matter_t", "Beef_Allocation", "Dairy_Allocation", "Deer_Allocation", "Sheep_Allocation"), min = 0, allowInvalid = FALSE)
     })
     
     output$Dairy_Production <- renderRHandsontable({
@@ -155,6 +184,34 @@ shinyServer(function(input, output, session) {
       rhandsontable(data, rowHeaders = FALSE) %>% 
         hot_col("Month", type = "dropdown", source = c(1:12), allowInvalid = FALSE) %>% 
         hot_validate_numeric(c("Milk_Yield_Herd_L", "Milk_Fat_Herd_kg", "Milk_Protein_Herd_kg"), min = 0, allowInvalid = FALSE)
+    })
+    
+    output$Breed_Allocation <- renderRHandsontable({
+      data <- Breed_Allocation_df_default
+      rhandsontable(data, rowHeaders = FALSE) %>% 
+        hot_col("Sector", type = "dropdown", source = allowable_Sector, allowInvalid = FALSE) %>% 
+        hot_col("Breed", type = "dropdown", source = allowable_StockClass, allowInvalid = FALSE) %>%
+        hot_validate_numeric("Breed_Allocation", min = 0, max = 1, allowInvalid = FALSE)
+    })
+    
+    output$Effluent_Structure_Use <- renderRHandsontable({
+      data <- Effluent_Structure_Use_df_default
+      rhandsontable(data, rowHeaders = FALSE) %>% 
+        hot_col("Month", type = "dropdown", source = c(1:12), allowInvalid = FALSE) %>% 
+        hot_validate_numeric(c("Dairy_Shed_hrs_day", "Other_Structures_hrs_day"), min = 0, max = 24, allowInvalid = FALSE)
+    })
+    
+    output$Effluent_EcoPond_Treatments <- renderRHandsontable({
+      data <- Effluent_EcoPond_Treatments_df_default 
+      rhandsontable(data, rowHeaders = FALSE) %>% 
+        hot_col("Treatment_Date", type = "date", dateFormat = "YYYY-MM-DD", validator = date_validator(), allowInvalid = FALSE)
+    })
+    
+    output$BreedingValues <- renderRHandsontable({
+      data <- BreedingValues_df_default
+      rhandsontable(data, rowHeaders = FALSE) %>% 
+        hot_col("StockClass", type = "dropdown", source = allowable_StockClass, allowInvalid = FALSE) %>% 
+        hot_validate_numeric("BV_aCH4", min = -0.4, max = 1, allowInvalid = FALSE)
     })
     
     output$Fertiliser <- renderRHandsontable({
@@ -177,7 +234,8 @@ shinyServer(function(input, output, session) {
                               Period_Start = as.Date(input$Period_Start),
                               Period_End = as.Date(input$Period_End),
                               Territory = input$Territory,
-                              Primary_Farm_Class = input$Primary_Farm_Class)
+                              Primary_Farm_Class = input$Primary_Farm_Class,
+                              Solid_Separator_Use = input$Solid_Separator_Use)
     # print(FarmYear_df)
     
     StockRec_BirthsDeaths_df <- hot_to_r(input$StockRec_BirthsDeaths) %>% 
@@ -201,24 +259,42 @@ shinyServer(function(input, output, session) {
     # print(StockRec_OpeningBalance_df)
     
     SuppFeed_DryMatter_df <- hot_to_r(input$SuppFeed_DryMatter) %>% 
-      filter(!is.na(SupplementName)) %>%
-      mutate(SupplementName = as.character(SupplementName)) %>% 
+      filter(!is.na(Supplement)) %>%
+      mutate(Supplement = as.character(Supplement)) %>% 
       bind_cols(FarmYear_df %>% select(Entity_ID, Period_End))
     # print(SuppFeed_DryMatter_df)
-    
-    SuppFeed_SectoralAllocation_df <- hot_to_r(input$SuppFeed_SectoralAllocation) %>% 
-      filter(!is.na(Sector)) %>%
-      mutate(Sector = as.character(Sector)) %>% 
-      bind_cols(FarmYear_df %>% select(Entity_ID, Period_End))
-    # print(SuppFeed_SectoralAllocation_df)
     
     Dairy_Production_df <- hot_to_r(input$Dairy_Production) %>% 
       filter(!is.na(Month)) %>%
       bind_cols(FarmYear_df %>% select(Entity_ID, Period_End))
     # print(Dairy_Production_df)
     
+    Breed_Allocation_df <- hot_to_r(input$Breed_Allocation) %>% 
+      filter(!is.na(Sector)) %>%
+      mutate(Sector = as.character(Sector),
+             Breed = as.character(Breed)) %>% 
+      bind_cols(FarmYear_df %>% select(Entity_ID, Period_End))
+    # print(Breed_Allocation_df)
+    
+    Effluent_Structure_Use_df <- hot_to_r(input$ Effluent_Structure_Use) %>% 
+      filter(!is.na(Month)) %>%
+      bind_cols(FarmYear_df %>% select(Entity_ID, Period_End))
+    # print(Effluent_Structure_Use_df)
+    
+    Effluent_EcoPond_Treatments_df <- hot_to_r(input$Effluent_EcoPond_Treatments) %>% 
+      filter(!is.na(Treatment_Date)) %>%
+      mutate(Treatment_Date = as.Date(Treatment_Date)) %>% 
+      bind_cols(FarmYear_df %>% select(Entity_ID, Period_End))
+    # print(Effluent_EcoPond_Treatments_df)
+    
+    BreedingValues_df <- hot_to_r(input$BreedingValues) %>% 
+      filter(!is.na(StockClass)) %>%
+      mutate(StockClass = as.character(StockClass)) %>% 
+      bind_cols(FarmYear_df %>% select(Entity_ID, Period_End))
+    # print(BreedingValues_df)
+    
     Fertiliser_df <- hot_to_r(input$Fertiliser) %>% 
-      filter(N_Urea_Coated_t + N_Urea_Uncoated_t + N_NonUrea_SyntheticFert_t > 0) %>% 
+      filter(N_Urea_Coated_t + N_Urea_Uncoated_t + N_NonUrea_SyntheticFert_t + N_OrganicFert_t + Lime_t + Dolomite_t > 0) %>% 
       bind_cols(FarmYear_df %>% select(Entity_ID, Period_End))
     # print(Fertiliser_df)
  
@@ -227,8 +303,11 @@ shinyServer(function(input, output, session) {
          StockRec_Movements_df,
          StockRec_OpeningBalance_df,
          SuppFeed_DryMatter_df,
-         SuppFeed_SectoralAllocation_df,
          Dairy_Production_df,
+         Breed_Allocation_df,
+         Effluent_Structure_Use_df,
+         Effluent_EcoPond_Treatments_df,
+         BreedingValues_df,
          Fertiliser_df,
          file = "user_inputs.RData")
   
@@ -292,9 +371,6 @@ shinyServer(function(input, output, session) {
         
         addWorksheet(wb, "SuppFeed_DryMatter")
         writeData(wb, "SuppFeed_DryMatter", SuppFeed_DryMatter_df)
-        
-        addWorksheet(wb, "SuppFeed_SectoralAllocation")
-        writeData(wb, "SuppFeed_SectoralAllocation", SuppFeed_SectoralAllocation_df)
         
         addWorksheet(wb, "Dairy_Production")
         writeData(wb, "Dairy_Production", Dairy_Production_df)

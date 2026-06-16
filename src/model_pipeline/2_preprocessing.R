@@ -33,8 +33,11 @@ StockRec_OpeningBalance_df <- parse_Entity__PeriodEnd(StockRec_OpeningBalance_df
 
 Fertiliser_df <- parse_Entity__PeriodEnd(Fertiliser_df, retain_Period_End = FALSE)
 Dairy_Production_df <- parse_Entity__PeriodEnd(Dairy_Production_df, retain_Period_End = FALSE)
+Effluent_Structure_Use_df <- parse_Entity__PeriodEnd(Effluent_Structure_Use_df, retain_Period_End = FALSE)
+Effluent_EcoPond_Treatments_df <- parse_Entity__PeriodEnd(Effluent_EcoPond_Treatments_df, retain_Period_End = FALSE)
 SuppFeed_DryMatter_df <- parse_Entity__PeriodEnd(SuppFeed_DryMatter_df, retain_Period_End = FALSE)
-SuppFeed_SectoralAllocation_df <- parse_Entity__PeriodEnd(SuppFeed_SectoralAllocation_df, retain_Period_End = FALSE)
+BreedingValues_df <- parse_Entity__PeriodEnd(BreedingValues_df, retain_Period_End = FALSE)
+Breed_Allocation_df <- parse_Entity__PeriodEnd(Breed_Allocation_df, retain_Period_End = FALSE)
 
 # general prep of FarmYear_df
 
@@ -63,13 +66,60 @@ FarmYear_df <- FarmYear_df %>%
     N_Urine_Steep_pct = case_when(
       Primary_Farm_Class %in% c("Dairy", "Cropping", "Orchard", "Vineyard") ~ 0,
       TRUE ~ N_Urine_Steep_pct
-    )
-  )
+    ),
+    Solid_Separation_pct = ifelse(Solid_Separator_Use, 0.95, 0)  # 95% of total phosphorus (and associated solids) partitions to the solid fraction, following Luo & Longhurst (2008) and assumed by Overseer.
+  ) %>% 
+  # add lookup regional effluent MCF
+  inner_join(lookup_regional_effluent_mcf_df,
+             by = "Region")
 
 # prep Dairy_Production_df
 
 Dairy_Production_df <- Dairy_Production_df %>%
   mutate(StockClass = "Milking Cows Mature")
+
+# prep of Effluent_Structure_Use_df
+
+Effluent_Structure_Use_df <- Effluent_Structure_Use_df %>%
+  mutate(Structures_hrs_day = Dairy_Shed_hrs_day + Other_Structures_hrs_day,
+         DungUrine_to_Effluent_pct = Structures_hrs_day / 24,
+         StockClass = "Milking Cows Mature")
+
+# prep of Effluent_EcoPond_Treatments_df
+
+Effluent_EcoPond_Treatments_df <- Effluent_EcoPond_Treatments_df %>% 
+  rowwise() %>% 
+  # create date sequence
+  mutate(Dates = ifelse(nrow(Effluent_EcoPond_Treatments_df) > 0,
+                        list(seq(Treatment_Date, 
+                                 Treatment_Date + 41, ## EcoPond suppression period of 6 weeks set by AIM (treatment date is counted as day 1)
+                                 by = "days")),
+                        NA)) %>% 
+  unnest(Dates) %>% 
+  # remove overlaps
+  summarise(.by = c(Entity__PeriodEnd, Dates),
+            Treatment_Date = last(Treatment_Date)) %>% 
+  # get prop of the month with effective dose
+  mutate(Month = month(Dates),
+         Year = year(Dates),
+         YearMonth = ymd(paste(Year, Month, "1", sep = "-"))) %>% 
+  summarise(.by = c(Entity__PeriodEnd, YearMonth),
+            Days_EcoPond = n()) %>% 
+  mutate(Days_EcoPond_pct = Days_EcoPond / days_in_month(YearMonth)) %>% 
+  suppressWarnings() # warning is raised in ymd() if the the dataframe has no rows. Results test fine.
+
+# prep Breed_Allocation_df
+
+Breed_Allocation_df <- Breed_Allocation_df %>%
+  inner_join(lookup_breed_lw_factor_df, by = "Breed") %>%
+  mutate(Breed_LW_factor_mean = Breed_Allocation * Breed_LW_factor) %>%
+  summarise(
+    .by = c(Entity__PeriodEnd, Sector),
+    Breed_LW_factor_mean = sum(Breed_LW_factor_mean)
+  ) %>%
+  cross_join(tibble(
+    StockClass = c("Dairy Heifers R1", "Dairy Heifers R2", "Milking Cows Mature")
+  ))
 
 # Create StockLedger
 
@@ -217,8 +267,10 @@ birthdates_birthless_df <- StockLedger_df %>%
 # warning is raised in summarise below if the above filter resolves to no rows. Results test fine. Suppressing:
 birthdates_birthless_df <- suppressWarnings(
   birthdates_birthless_df %>%
-  summarise(Birthless_Date_min = min(Transaction_Date),
-            .groups = "drop", .)
+  summarise(
+    Birthless_Date_min = min(Transaction_Date),
+    .groups = "drop"
+  )
 )
 
 birthdates_birthless_df <- birthdates_birthless_df %>%
@@ -267,19 +319,11 @@ StockRec_daily_df <- StockLedger_agg_df %>%
   group_by(Entity__PeriodEnd, StockClass) %>%
   mutate(StockCount_day = cumsum(Stock_Change))
 
-# basic validation check for negative stock counts
-# this occurs when input data for a farm has a stock outflow transaction (sale, death etc.) which
-# exceeds current stock count. If this occurs, fix your input data
-
-assert_that(
-  all(StockRec_daily_df$StockCount_day >= 0),
-  msg = (
-    "Negative stock counts detected in StockRec_daily_df. To troubleshoot run: StockRec_daily_df %>% filter(StockCount_day < 0)"
-  )
-)
+# Verify daily stock rec is never negative
+if("val_StockLedger_StockCount_not_negative" %in% param_validations) {val_StockLedger_StockCount_not_negative()}
 
 StockRec_monthly_df <- StockRec_daily_df %>%
-  mutate(YearMonth = floor_date(Date, unit = "month"), ) %>%
+  mutate(YearMonth = floor_date(Date, unit = "month")) %>%
   # calculate monthly average StockCount
   group_by(Entity__PeriodEnd, YearMonth, StockClass) %>%
   summarise(
@@ -292,6 +336,25 @@ StockRec_monthly_df <- StockRec_daily_df %>%
       # we needed zero counts (if present) to calculate StockCount_mean above, now they can be removed
       StockCount_mean > 0 
     )
+
+# Verify Milking Cows are present in all months dairy milk is produced
+if("val_Dairy_Production_cows_present" %in% param_validations) {val_Dairy_Production_cows_present()}
+
+# Verify that effluent structures are used if there are milking cows on the farm for a particular month
+if("val_Effluent_Structure_Use_Month_complete" %in% param_validations) {val_Effluent_Structure_Use_Month_complete()}
+
+# Verify that effluent structures are not used if there are no milking cows on the farm for a particular month
+if("val_Effluent_Structure_Use_cows_present" %in% param_validations) {val_Effluent_Structure_Use_cows_present()}
+
+# Verify that solid separators are not used if there are no milking cows on the farm
+if("val_Solid_Separator_Use_cows_present" %in% param_validations) {val_Solid_Separator_Use_cows_present()}
+
+# Verify that stock is present on the farm if breeding values are provided for that StockClass
+if("val_BreedingValues_StockClass_present" %in% param_validations) {val_BreedingValues_StockClass_present()}
+
+# Verify that female dairy StockClass are present on the farm if breed allocation are provided
+if("val_Breed_Allocation_StockClass_present" %in% param_validations) {val_Breed_Allocation_StockClass_present()}
+
 
 # preprocessing: newborns
 
@@ -397,7 +460,10 @@ livestock_precalc_df <- StockRec_monthly_df %>%
       Pasture_Region,
       Primary_Farm_Class,
       N_Urine_Flattish_pct,
-      N_Urine_Steep_pct
+      N_Urine_Steep_pct,
+      Solid_Separation_pct,
+      MCF_AL,
+      MCF_SS
     ),
     by = "Entity__PeriodEnd"
   ) %>%
@@ -453,6 +519,25 @@ livestock_precalc_df <- StockRec_monthly_df %>%
       Milk_Protein_Herd_kg
     ),
     by = c("Entity__PeriodEnd", "Month", "StockClass")
+  ) %>% 
+  left_join(
+    Effluent_Structure_Use_df %>% 
+      select(
+        Entity__PeriodEnd,
+        Month,
+        StockClass,
+        DungUrine_to_Effluent_pct),
+    by = c("Entity__PeriodEnd", "Month", "StockClass")
+  ) %>% # remove Solid_Separation_pct values for other stock classes
+  mutate(
+    Solid_Separation_pct = ifelse(StockClass == "Milking Cows Mature", Solid_Separation_pct, NA)
+  ) %>% 
+  left_join(Effluent_EcoPond_Treatments_df,
+            by = c("Entity__PeriodEnd", "YearMonth")
+  ) %>% 
+  mutate(EcoPond_Efficacy_pct = Days_EcoPond_pct * 0.92, # EcoPond efficacy of 92% set by AIM
+         EcoPond_Efficacy_pct = ifelse(StockClass == "Milking Cows Mature", EcoPond_Efficacy_pct, 0),
+         EcoPond_Efficacy_pct = replace_na(EcoPond_Efficacy_pct, 0)  # this handles empty Effluent_EcoPond_Treatments_df
   ) %>% # force slope to flat for mature milking cows (for edge case farms where Primary_Farm_Class is not Dairy)
   mutate(
     N_Urine_Flattish_pct = case_when(
@@ -463,6 +548,24 @@ livestock_precalc_df <- StockRec_monthly_df %>%
       StockClass == "Milking Cows Mature" ~ 0,
       TRUE ~ N_Urine_Steep_pct
     )
+  ) %>% 
+  left_join(
+    BreedingValues_df,
+    by = c("Entity__PeriodEnd", "StockClass")
+  ) %>% 
+  mutate(
+    BV_aCH4 = replace_na(BV_aCH4, 0)
+  ) %>% 
+  left_join(
+    Breed_Allocation_df,
+    by = c("Entity__PeriodEnd", "Sector", "StockClass")
+  ) %>% 
+  mutate(
+    Breed_LW_factor_mean = replace_na(Breed_LW_factor_mean, 1),
+    LW_kg = LW_kg * Breed_LW_factor_mean,
+    LWG_kg = LWG_kg * Breed_LW_factor_mean,
+    FWG_kg = FWG_kg * Breed_LW_factor_mean,
+    BW_kg = BW_kg * Breed_LW_factor_mean
   ) %>% # final select for re-ordering of cols
   select(
     # core
@@ -484,6 +587,8 @@ livestock_precalc_df <- StockRec_monthly_df %>%
     "SRW_kg",
     "LW_kg",
     "LWG_kg",
+    "Breed_LW_factor_mean",
+    "BW_kg",
     # other production
     "Velvet_Yield_kg",
     "Wool_Yield_kg",
@@ -512,5 +617,16 @@ livestock_precalc_df <- StockRec_monthly_df %>%
     # dairy production
     "Milk_Yield_Herd_L",
     "Milk_Fat_Herd_kg",
-    "Milk_Protein_Herd_kg"
+    "Milk_Protein_Herd_kg",
+    # effluent management
+    "DungUrine_to_Effluent_pct",
+    "Solid_Separation_pct",
+    "EcoPond_Efficacy_pct",
+    "MCF_AL",
+    "MCF_SS",
+    # mitigation technologies
+    "BV_aCH4"
   )
+
+# Verify stock for a given sector is present for any allocated supplementary feed
+if("val_SuppFeed_DryMatter_Sector_present" %in% param_validations) {val_SuppFeed_DryMatter_Sector_present()}

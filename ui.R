@@ -9,7 +9,9 @@ shinyUI(
       dateInput("Period_Start", "Period_Start", value = "2022-06-01"),
       dateInput("Period_End", "Period_End", value = "2023-05-31"),
       selectInput("Territory", "Territory", choices = allowable_Territory, selected = "Southland District"),
-      selectInput("Primary_Farm_Class", "Primary_Farm_Class", choices = allowable_Primary_Farm_Class, selected = "Dairy")
+      selectInput("Primary_Farm_Class", "Primary_Farm_Class", choices = allowable_Primary_Farm_Class, selected = "Dairy"),
+      strong("Solid_Separator_Use"),
+      checkboxInput("Solid_Separator_Use", "Yes", value = FALSE)
       ),
     mainPanel(
       tabsetPanel(
@@ -24,24 +26,27 @@ shinyUI(
           br(),
           br(),
           fluidRow(
-            column(8, "StockRec_Movements", rHandsontableOutput("StockRec_Movements")),
+            column(4, "StockRec_Movements", rHandsontableOutput("StockRec_Movements")),
+            column(4, "SuppFeed_DryMatter", rHandsontableOutput("SuppFeed_DryMatter"))
             ),
           br(),
           br(),
           fluidRow(
-            column(4, "SuppFeed_DryMatter", rHandsontableOutput("SuppFeed_DryMatter")),
-            column(4, "SuppFeed_SectoralAllocation", rHandsontableOutput("SuppFeed_SectoralAllocation"))
+            column(4, "Dairy_Production", rHandsontableOutput("Dairy_Production")),
+            column(4, "Breed_Allocation", rHandsontableOutput("Breed_Allocation"))
             ),
           br(),
           br(),
           fluidRow(
-            column(8, "Dairy_Production", rHandsontableOutput("Dairy_Production"))
+            column(4, "Effluent_Structure_Use", rHandsontableOutput("Effluent_Structure_Use")),
+            column(4, "Effluent_EcoPond_Treatments", rHandsontableOutput("Effluent_EcoPond_Treatments"))
             ),
           br(),
           br(),
           fluidRow(
-            column(8, "Fertiliser", rHandsontableOutput("Fertiliser"))
-            ),
+            column(4, "BreedingValues", rHandsontableOutput("BreedingValues")),
+            column(4, "Fertiliser", rHandsontableOutput("Fertiliser"))
+          ),
           br(),
           br(),
           actionButton("ClearTables", "Clear Tables"),
@@ -71,7 +76,7 @@ shinyUI(
         
         tabPanel(
           "Info",
-          HTML("<br>This app is an R Shiny implementation of the <a href='https://github.com/Ministry-for-Primary-Industries/FarmEmissionsModel'>Farm Emissions R Model.</a><br>
+          HTML("<br>This app is an R Shiny implementation of the <a href='https://github.com/Ministry-for-Primary-Industries/FarmEmissionsModel' target='_blank'>Farm Emissions R Model.</a><br>
                       User provides farm data on the input tab, and the output tab shows the summary emissions results.<br>
                       Please follow these steps.<br>
                       1. Fill out the farm details on the left hand side. The fields are pre-populated with an example farm data.<br>

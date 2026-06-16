@@ -394,12 +394,13 @@ eq_fem3_ME_c <- function(
     Trimester_Factor, # assumedParameters lookup
     Reproduction_Rate, # assumedParameters lookup
     k_c=0.133, # set by AIM
-    MonthDays
+    MonthDays,
+    BW_kg # assumedParameters lookup
 ) {
   
     # ref FEM equations 3.25 - 3.32
   
-    feq_cattle <- function() {
+    feq_dairy <- function() {
       
       BW_kg = 0.095 * LW_kg
     
@@ -413,6 +414,20 @@ eq_fem3_ME_c <- function(
       
       return(ME_c)
     
+    }
+    
+    feq_beef <- function() {
+      
+      E_t = 10 ** (151.665 - 151.64 * exp(-5.76e-05 * Days_Pregnant))
+      
+      ME_c_day = 0.025 * BW_kg * (
+        ((0.0201 * E_t) * exp(-5.76e-05 * Days_Pregnant)) / k_c
+      )
+      
+      ME_c = ME_c_day * MonthDays * Reproduction_Rate
+      
+      return(ME_c)
+      
     }
   
     feq_deer <- function() {
@@ -431,7 +446,7 @@ eq_fem3_ME_c <- function(
     
       E_t = 10 ** (3.322 - 4.979*exp(-6.43e-03 * Days_Pregnant))
       
-      ME_c_day = 0.025 * BW_kg * (
+      ME_c_day = 0.25 * BW_kg * (
         ((0.07372 * E_t) * exp(-6.43e-03 * Days_Pregnant)) / k_c
       )
       
@@ -443,7 +458,8 @@ eq_fem3_ME_c <- function(
       
     
     case_when(
-      Sector %in% c("Beef", "Dairy") & Days_Pregnant > 0 ~ feq_cattle(),
+      Sector == "Dairy" & Days_Pregnant > 0 ~ feq_dairy(),
+      Sector == "Beef" & Days_Pregnant > 0 ~ feq_beef(),
       Sector == "Deer" & Trimester_Factor > 0 ~ feq_deer(),
       Sector == "Sheep" & Days_Pregnant > 0 ~ feq_sheep(),
       TRUE ~ 0 # zero when not pregnant
@@ -563,8 +579,7 @@ eq_fem3_ME_total <- function(
 
 eq_fem4_derive_farm_diet_parameters <- function(
     in_df, # livestock module intermediate calc_df after ME_totals have been calculated
-    SuppFeed_DryMatter_df, # farm data input of supplementary feed purchased
-    SuppFeed_SectoralAllocation_df, # farm data input of the % of supplementary feed purchased is relevant to sector being calculated
+    SuppFeed_DryMatter_df, # farm data input of supplementary feed purchased and it's sectoral allocation
     lookup_nutrientProfile_supplements_df, # lookup table of supplementary feed nutritional profiles
     lookup_nutrientProfile_pasture_df # lookup table of pasture nutritional profiles
 ) {
@@ -573,31 +588,40 @@ eq_fem4_derive_farm_diet_parameters <- function(
   
   # Part 1: Data Prep
   
+  filtered_Sector = in_df$Sector[1]
+  
   # pasture nutritional profiles are different for dairy vs. non-dairy: find relevant sector from in_df
-  pastureSector = case_when(
-    in_df$Sector[1] == "Dairy" ~ "Dairy",
+  pasture_Sector = case_when(
+    filtered_Sector == "Dairy" ~ "Dairy",
     TRUE ~ "NonDairy"
   )
   
-  # apply sectoral feed allocation
-  SuppFeed_DryMatter_df <- SuppFeed_DryMatter_df %>%
-    left_join( # left join req'd
-      SuppFeed_SectoralAllocation_df,
-      by="Entity__PeriodEnd"
+  # apply sectoral allocation to supplementary feed
+  supps_df <- SuppFeed_DryMatter_df %>%
+    select(
+      Entity__PeriodEnd,
+      Supplement,
+      Dry_Matter_t,
+      SuppFeed_Allocation = paste0(filtered_Sector, "_Allocation")
     ) %>%
     mutate(
       SuppFeed_Allocation = replace_na(SuppFeed_Allocation, 0),
       Supp_t_annual = Dry_Matter_t * SuppFeed_Allocation
     ) %>%
+    filter(Supp_t_annual > 0 ) %>%
     select(-SuppFeed_Allocation)
   
   # Part 2: Calculation to derive farm-level diet parameters
   
   # Part 2.1: Combined supplements diet (excl. pasture) nutritional profile
   
-  SuppFeed_DryMatter_df <- SuppFeed_DryMatter_df %>% 
-    left_join(lookup_nutrientProfile_supplements_df, by="SupplementName") %>% # left join req'd
-    select(Entity__PeriodEnd, SupplementName, ME_Supp, DMD_pct_Supp, N_pct_Supp, Supp_t_annual) %>%
+  supps_df <- supps_df %>% 
+    inner_join(
+      lookup_nutrientProfile_supplements_df,
+      by="Supplement"
+    ) %>%
+    mutate(Supp_t_annual = Supp_t_annual * Utilisation_Supp) %>% 
+    select(Entity__PeriodEnd, Supplement, ME_Supp, DMD_pct_Supp, N_pct_Supp, Supp_t_annual) %>%
     group_by(Entity__PeriodEnd) %>%
     mutate(
       AllSupps_t_annual = sum(Supp_t_annual),
@@ -605,7 +629,7 @@ eq_fem4_derive_farm_diet_parameters <- function(
     ) %>%
     ungroup()
   
-  inputs_supps_df_agg <- SuppFeed_DryMatter_df %>%
+  supps_df_agg <- supps_df %>%
     summarise(
       .by = Entity__PeriodEnd,
       ME_AllSupps = sum(ME_Supp * Supp_allocation),
@@ -631,7 +655,7 @@ eq_fem4_derive_farm_diet_parameters <- function(
       ME_total_allocation = ME_total_SectorTotal / sum(ME_total_SectorTotal)
     ) %>%
     ungroup() %>%
-    left_join(inputs_supps_df_agg, by="Entity__PeriodEnd") # left_join req'd
+    left_join(supps_df_agg, by="Entity__PeriodEnd") # left_join req'd
   
   # Part 2.3: Determine tonnages and energy contribution of supplements and pasture:
   
@@ -653,10 +677,10 @@ eq_fem4_derive_farm_diet_parameters <- function(
   
   farm_diet_df3 <- farm_diet_df2 %>%
     inner_join(
-      lookup_nutrientProfile_pasture_df %>% filter(Sector == pastureSector),
+      lookup_nutrientProfile_pasture_df %>% filter(Sector == pasture_Sector),
       by=c("Month", "Pasture_Region")
     ) %>%
-    filter(Sector == pastureSector) %>%
+    filter(Sector == pasture_Sector) %>%
     select(-Sector) %>%
     mutate(
       Pasture_t = Pasture_ME_contribution_SectorTotal / (1000 * ME_Pasture),
@@ -954,7 +978,8 @@ eq_fem6_CH4_Enteric_kg <- function(
   StockClass, # StockClass variation
   DMI_kg, # calculated in system
   ME_Diet, # calculated in system
-  MonthDays
+  MonthDays,
+  BV_aCH4
   ) {
   
   # ref FEM equations 6.1 - 6.4
@@ -966,7 +991,7 @@ eq_fem6_CH4_Enteric_kg <- function(
   
   feq_cattle_deer <- function(MCR) {
     
-    CH4_Enteric_kg <- DMI_kg * ( MCR / 1000 )
+    CH4_Enteric_kg <- DMI_kg * ( MCR / 1000 ) * (1 + BV_aCH4)
     
     return(CH4_Enteric_kg)
     
@@ -976,7 +1001,7 @@ eq_fem6_CH4_Enteric_kg <- function(
     
     DMI_kg_day <- DMI_kg / MonthDays
     
-    CH4_Enteric_kg_day <- (11.705 / 1000) * exp(0.05 * ME_Diet) * (DMI_kg_day)^0.734
+    CH4_Enteric_kg_day <- (11.705 / 1000) * exp(0.05 * ME_Diet) * ((DMI_kg_day)^0.734) * (1 + BV_aCH4)
     
     CH4_Enteric_kg <- CH4_Enteric_kg_day * MonthDays
     
@@ -988,7 +1013,7 @@ eq_fem6_CH4_Enteric_kg <- function(
     
     DMI_kg_day <- DMI_kg / MonthDays
     
-    CH4_Enteric_kg_day <- (21.977 / 1000) * DMI_kg_day^0.765
+    CH4_Enteric_kg_day <- (21.977 / 1000) * (DMI_kg_day^0.765) * (1 + BV_aCH4)
     
     CH4_Enteric_kg <- CH4_Enteric_kg_day * MonthDays
     
@@ -1020,16 +1045,33 @@ eq_fem7_FDM_kg <- function(
   
 }
 
+eq_fem7_DungUrine_to_SolidS_pct <- function(
+    StockClass, # StockClass variation
+    DungUrine_to_Effluent_pct, # calculated in system
+    Solid_Separation_pct # calculated in system
+    ) {
+  
+  # ref FEM equations 7.2a - 7.2b
+  
+  DungUrine_to_SolidS_pct = case_when(
+    StockClass == "Milking Cows Mature" ~ DungUrine_to_Effluent_pct * Solid_Separation_pct,
+    TRUE ~ 0
+  )
+  
+  return(DungUrine_to_SolidS_pct)
+  
+}
 
 eq_fem7_DungUrine_to_Lagoon_pct <- function(
     StockClass, # StockClass variation
-    Milk_Yield_kg # calculated in system
+    DungUrine_to_Effluent_pct, # calculated in system
+    DungUrine_to_SolidS_pct # calculated in system
     ) {
   
   # ref FEM equations 7.2a - 7.2b
   
   DungUrine_to_Lagoon_pct = case_when(
-    StockClass == "Milking Cows Mature" & Milk_Yield_kg > 0 ~ 0.094,
+    StockClass == "Milking Cows Mature" ~ DungUrine_to_Effluent_pct - DungUrine_to_SolidS_pct,
     TRUE ~ 0
   )
   
@@ -1038,12 +1080,13 @@ eq_fem7_DungUrine_to_Lagoon_pct <- function(
 }
 
 eq_fem7_DungUrine_to_Pasture_pct <- function(
+    DungUrine_to_SolidS_pct, # calculated in system
     DungUrine_to_Lagoon_pct # calculated in system
     ) {
   
   # ref FEM equation 7.3
   
-  DungUrine_to_Pasture_pct = 1 - DungUrine_to_Lagoon_pct
+  DungUrine_to_Pasture_pct = 1 - DungUrine_to_SolidS_pct - DungUrine_to_Lagoon_pct
   
   return(DungUrine_to_Pasture_pct)
   
@@ -1224,14 +1267,15 @@ eq_fem7_CH4_Effluent_Lagoon_kg <- function(
     FDM_kg, # calculated in system
     Ash_pct=0.08, # set by AIM
     B0=0.24, # set by AIM
-    MCF=0.74 # set by AIM
+    MCF_AL, # regional_effluent_mcf lookup based on farm data inputs
+    EcoPond_Efficacy_pct # calculated in system
 ) {
   
   # ref FEM equation 7.11
   
    feq_milkingDairyCows <- function() {
      
-     CH4_Effluent_Lagoon_kg <- FDM_kg * (1 - Ash_pct) * B0 * 0.67 * MCF * DungUrine_to_Lagoon_pct
+     CH4_Effluent_Lagoon_kg <- FDM_kg * (1 - Ash_pct) * B0 * 0.67 * MCF_AL * DungUrine_to_Lagoon_pct * (1 - EcoPond_Efficacy_pct)
      
      return(CH4_Effluent_Lagoon_kg)
      
@@ -1270,60 +1314,124 @@ eq_fem7_N2O_Effluent_Lagoon_Volat_kg <- function(
 }
 
 
-eq_fem7_N_OrganicFert_kg <- function(
+eq_fem7_CH4_Effluent_SolidS_kg <- function(
+    DungUrine_to_SolidS_pct, # calculated in system
+    FDM_kg, # calculated in system
+    Ash_pct=0.08, # set by AIM
+    B0=0.24, # set by AIM
+    MCF_SS # regional_effluent_mcf lookup based on farm data inputs
+) {
+  
+  # ref FEM equation xx
+  
+  CH4_Effluent_SolidS_kg <- FDM_kg * (1 - Ash_pct) * B0 * 0.67 * MCF_SS * DungUrine_to_SolidS_pct
+  
+  return(CH4_Effluent_SolidS_kg)
+
+}
+
+eq_fem7_N2O_Effluent_SolidS_Direct_kg <- function(
+    N_Excretion_kg, # calculated in system
+    DungUrine_to_SolidS_pct, # calculated in system
+    EF_3_SS=0.010 # set by AIM
+) {
+  
+  # ref FEM equation xx
+  
+  N2O_Effluent_SolidS_Direct_kg = 44/28 * EF_3_SS * DungUrine_to_SolidS_pct * N_Excretion_kg
+  
+  return(N2O_Effluent_SolidS_Direct_kg)
+  
+}
+
+eq_fem7_N2O_Effluent_SolidS_Leach_kg <- function(
+    N_Excretion_kg, # calculated in system
+    DungUrine_to_SolidS_pct, # calculated in system
+    EF_5=0.0075, # set by AIM
+    frac_leach_SS=0.02 # set by AIM
+) {
+  
+  # ref FEM equation xx
+  
+  N2O_Effluent_SolidS_Leach_kg = 44/28 * EF_5 * frac_leach_SS * DungUrine_to_SolidS_pct * N_Excretion_kg
+  
+  return(N2O_Effluent_SolidS_Leach_kg)
+  
+}
+
+eq_fem7_N2O_Effluent_SolidS_Volat_kg <- function(
+    N_Excretion_kg, # calculated in system
+    DungUrine_to_SolidS_pct, # calculated in system
+    EF_4=0.01, # set by AIM
+    frac_gasMS_SS=0.30 # set by AIM
+) {
+  
+  # ref FEM equation xx
+  
+
+  N2O_Effluent_SolidS_Volat_kg = N_Excretion_kg * DungUrine_to_SolidS_pct * EF_4 * frac_gasMS_SS * 44/28
+    
+  return(N2O_Effluent_SolidS_Volat_kg)
+
+}
+
+
+eq_fem7_N_Effluent_Spread_kg <- function(
   N_Excretion_kg, # calculated in system
-  DungUrine_to_Lagoon_pct # calculated in system
+  DungUrine_to_Lagoon_pct, # calculated in system
+  DungUrine_to_SolidS_pct, # calculated in system
+  frac_gasMS_AL=0.35, # set by AIM
+  frac_gasMS_SS=0.30, # set by AIM
+  frac_leach_SS=0.02, # set by AIM
+  EF_3_SS=0.010 # set by AIM
 ) {
   
   # ref FEM equation 7.13
   
-  N_OrganicFert_kg = N_Excretion_kg * DungUrine_to_Lagoon_pct
+  N_Effluent_Spread_kg = N_Excretion_kg * (DungUrine_to_Lagoon_pct * (1 - frac_gasMS_AL) + DungUrine_to_SolidS_pct * (1 - frac_gasMS_SS - frac_leach_SS - EF_3_SS))  # this is the N remaining after leaching, volatilisation and direct emissions from lagoon and solid storage
   
-  return(N_OrganicFert_kg)
+  return(N_Effluent_Spread_kg)
   
 }
 
-eq_fem7_N2O_OrganicFert_Direct_kg <- function(
-  N_OrganicFert_kg, # calculated in system
-  frac_gasMS_AL=0.35, # set by AIM
+eq_fem7_N2O_Effluent_Spread_Direct_kg <- function(
+  N_Effluent_Spread_kg, # calculated in system
   EF_1_Dairy=0.0025 # set by AIM
 ) {
   
   # ref FEM equation 7.14
   
-  N2O_OrganicFert_Direct_kg = 44/28 * ( N_OrganicFert_kg * (1 - frac_gasMS_AL) * EF_1_Dairy )
+  N2O_Effluent_Spread_Direct_kg = (44/28) * N_Effluent_Spread_kg * EF_1_Dairy
   
-  return(N2O_OrganicFert_Direct_kg)
+  return(N2O_Effluent_Spread_Direct_kg)
   
 }
 
-eq_fem7_N2O_OrganicFert_Leach_kg <- function(
-  N_OrganicFert_kg, # calculated in system
-  frac_gasMS_AL=0.35, # set by AIM
-  frac_leach_organicfert=0.08, # set by AIM
+eq_fem7_N2O_Effluent_Spread_Leach_kg <- function(
+  N_Effluent_Spread_kg, # calculated in system
+  frac_leach_eff_spread=0.08, # set by AIM
   EF_5=0.0075 # set by AIM
 ) {
   
   # ref FEM equation 7.15
   
-  N2O_OrganicFert_Leach_kg = 44/28 * ( N_OrganicFert_kg * (1 - frac_gasMS_AL) * frac_leach_organicfert * EF_5 )
+  N2O_Effluent_Spread_Leach_kg = (44/28) * N_Effluent_Spread_kg * frac_leach_eff_spread * EF_5
   
-  return(N2O_OrganicFert_Leach_kg)
+  return(N2O_Effluent_Spread_Leach_kg)
   
 }
 
-eq_fem7_N2O_OrganicFert_Volat_kg <- function(
-  N_OrganicFert_kg, # calculated in system
-  frac_gasMS_AL=0.35, # set by AIM
+eq_fem7_N2O_Effluent_Spread_Volat_kg <- function(
+  N_Effluent_Spread_kg, # calculated in system
   frac_NOx_and_NH3=0.1, # set by AIM
   EF_4=0.01 # set by AIM
 ) {
   
   # ref FEM equation 7.16
   
-  N2O_OrganicFert_Volat_kg = 44/28 * ( N_OrganicFert_kg * (1 - frac_gasMS_AL) * frac_NOx_and_NH3 * EF_4 )
+  N2O_Effluent_Spread_Volat_kg = (44/28) * N_Effluent_Spread_kg * frac_NOx_and_NH3 * EF_4
   
-  return(N2O_OrganicFert_Volat_kg)
+  return(N2O_Effluent_Spread_Volat_kg)
   
 }
 
@@ -1402,3 +1510,43 @@ eq_fem8_CO2_SynthFert_t <- function(
   return(CO2_SynthFert_t)
 
 }
+
+
+eq_fem8_N2O_OrganicFert_Direct_t <- function(
+    N_OrganicFert_t, # farm data input
+    EF_1_OrganicFert = 0.006, # set by AIM
+    corr_N2O = 44 / 28 # set by AIM
+    ) {
+  
+  N2O_OrganicFert_Direct_t <- corr_N2O * N_OrganicFert_t * EF_1_OrganicFert
+
+  return(N2O_OrganicFert_Direct_t)
+
+}
+
+
+eq_fem8_CO2_Lime_t <- function(
+    Lime_t, # farm data input
+    Lime_CaCO3_pct = 0.82, # set by AIM
+    EF_Lime = 0.12, # set by AIM
+    corr_CO2 = 44 / 12 # set by AIM
+    ) {
+  
+  CO2_Lime_t <- Lime_t * Lime_CaCO3_pct * EF_Lime * corr_CO2
+
+  return(CO2_Lime_t)
+
+}
+
+eq_fem8_CO2_Dolomite_t <- function(
+    Dolomite_t, # farm data input
+    EF_Dolomite = 0.13, # set by AIM
+    corr_CO2 = 44 / 12 # set by AIM
+    ) {
+  
+  CO2_Dolomite_t <- Dolomite_t * EF_Dolomite * corr_CO2
+
+  return(CO2_Dolomite_t)
+
+}
+
