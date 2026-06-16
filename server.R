@@ -224,6 +224,8 @@ shinyServer(function(input, output, session) {
     
   })
   
+  ErrorText <- reactiveVal("")  # store error message
+  
   # calculate emissions
   observeEvent(input$CalcEmissions, {
     
@@ -313,11 +315,16 @@ shinyServer(function(input, output, session) {
   
     source("load_user_inputs.R")
     
-    # run FEM
-    source("src/model_pipeline/2_preprocessing.R")
-    source("src/model_pipeline/3.1_livestock.R")
-    source("src/model_pipeline/3.2_fertiliser.R")
-    source("src/model_pipeline/4_summary_outputs.R")
+    ErrorText("")  # reset error message
+    # run FEM, tryCatch prevents app from closing when validation errors are encountered
+    tryCatch({
+      source("src/model_pipeline/2_preprocessing.R")
+      source("src/model_pipeline/3.1_livestock.R")
+      source("src/model_pipeline/3.2_fertiliser.R")
+      source("src/model_pipeline/4_summary_outputs.R")
+    }, error = function(e) {
+      ErrorText(e$message)  # capture error message
+    })
     
     # print(smry_all_annual_by_emission_type_df)
     # print(smry_all_annual_by_gas_df)
@@ -325,6 +332,10 @@ shinyServer(function(input, output, session) {
     # display outputs
     output$Output_Smry_Type <- renderRHandsontable({
       rhandsontable(smry_all_annual_by_emission_type_df %>% select(-1,-2), rowHeaders = FALSE, readOnly = TRUE)
+    })
+    
+    output$ErrorMsg <- renderText({
+      if (ErrorText() != "") paste("Error:", ErrorText())
     })
     
     output$plot_Output_Smry_Type <- renderPlotly({

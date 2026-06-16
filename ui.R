@@ -59,6 +59,7 @@ shinyUI(
           "Outputs",
           br(),
           actionButton("CalcEmissions", "Calculate Emissions"),
+          verbatimTextOutput("ErrorMsg"),
           br(),
           br(),
           br(),
