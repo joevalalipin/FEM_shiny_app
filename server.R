@@ -369,27 +369,27 @@ shinyServer(function(input, output, session) {
       rhandsontable(smry_all_annual_by_emission_type_df %>% select(-1,-2), rowHeaders = FALSE, readOnly = TRUE)
     })
     
-    output$plot_Output_Smry_Type <- renderPlotly({
-      smry_all_annual_by_emission_type_df %>% 
-        select(-1,-2) %>% 
-        gather(key = "type", value = "emissions in kg") %>% 
-        plot_ly(x = ~type, y = ~`emissions in kg`, type = "bar") %>% 
-        layout(xaxis = list(title = ""),
-               yaxis = list(title = ""))
-    })
+    # output$plot_Output_Smry_Type <- renderPlotly({
+    #   smry_all_annual_by_emission_type_df %>% 
+    #     select(-1,-2) %>% 
+    #     gather(key = "type", value = "emissions in kg") %>% 
+    #     plot_ly(x = ~type, y = ~`emissions in kg`, type = "bar") %>% 
+    #     layout(xaxis = list(title = ""),
+    #            yaxis = list(title = ""))
+    # })
     
     output$Output_Smry_Gas <- renderRHandsontable({
       rhandsontable(smry_all_annual_by_gas_df %>% select(-1,-2), rowHeaders = FALSE, readOnly = TRUE)
     })
     
-    output$plot_Output_Smry_Gas <- renderPlotly({
-      smry_all_annual_by_gas_df %>% 
-        select(-1,-2) %>% 
-        gather(key = "type", value = "emissions in kg") %>% 
-        plot_ly(x = ~type, y = ~`emissions in kg`, type = "bar") %>% 
-        layout(xaxis = list(title = ""),
-               yaxis = list(title = ""))
-    })
+    # output$plot_Output_Smry_Gas <- renderPlotly({
+    #   smry_all_annual_by_gas_df %>% 
+    #     select(-1,-2) %>% 
+    #     gather(key = "type", value = "emissions in kg") %>% 
+    #     plot_ly(x = ~type, y = ~`emissions in kg`, type = "bar") %>% 
+    #     layout(xaxis = list(title = ""),
+    #            yaxis = list(title = ""))
+    # })
     
     output$Mitigation_Smry_Type <- renderRHandsontable({
       rhandsontable(smry_all_annual_by_emission_type_mitign_delta_df %>% select(-1,-2), rowHeaders = FALSE, readOnly = TRUE)
@@ -425,8 +425,35 @@ shinyServer(function(input, output, session) {
         addWorksheet(wb, "Dairy_Production")
         writeData(wb, "Dairy_Production", Dairy_Production_df)
         
+        addWorksheet(wb, "Breed_Allocation")
+        writeData(wb, "Breed_Allocation", Dairy_Production_df)
+        
+        addWorksheet(wb, "Effluent_Structure_Use")
+        writeData(wb, "Effluent_Structure_Use", Dairy_Production_df)
+        
+        addWorksheet(wb, "Effluent_EcoPond_Treatments")
+        writeData(wb, "Effluent_EcoPond_Treatments", Dairy_Production_df)
+        
+        addWorksheet(wb, "BreedingValues")
+        writeData(wb, "BreedingValues", Dairy_Production_df)
+        
         addWorksheet(wb, "Fertiliser")
         writeData(wb, "Fertiliser", Fertiliser_df)
+        
+        addWorksheet(wb, "Emissions_Summary_CO2e")
+        writeData(wb, "Emissions_Summary_CO2e", smry_all_annual_df)
+        
+        addWorksheet(wb, "Emissions_Summary_by_Type")
+        writeData(wb, "Emissions_Summary_by_Type", smry_all_annual_by_emission_type_df)
+        
+        addWorksheet(wb, "Emissions_Summary_by_Gas")
+        writeData(wb, "Emissions_Summary_by_Gas", smry_all_annual_by_gas_df)
+        
+        addWorksheet(wb, "Mitigation_Summary_by_Type")
+        writeData(wb, "Mitigation_Summary_by_Type", smry_all_annual_by_emission_type_mitign_delta_df)
+        
+        addWorksheet(wb, "Mitigation_Summary_by_Gas")
+        writeData(wb, "Mitigation_Summary_by_Gas", smry_all_annual_by_gas_mitign_delta_df)
         
         saveWorkbook(wb, file, overwrite = TRUE)
         }
