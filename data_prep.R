@@ -69,7 +69,8 @@ StockRec_OpeningBalance_df_ex <- read_csv("data_input_example/StockRec_OpeningBa
 
 StockRec_Movements_df_ex <- read_csv("data_input_example/StockRec_Movements.csv") %>% 
   filter(Entity_ID == 10002) %>% 
-  select(-Entity_ID, -Period_End)
+  select(-Entity_ID, -Period_End) %>% 
+  mutate(Transaction_Date = as.character(Transaction_Date))
 
 StockRec_BirthsDeaths_df_ex <- read_csv("data_input_example/StockRec_BirthsDeaths.csv") %>% 
   filter(Entity_ID == 10002) %>% 
@@ -93,7 +94,8 @@ Effluent_Structure_Use_df_ex <- read_csv("data_input_example/Effluent_Structure_
 
 Effluent_EcoPond_Treatments_df_ex <- read_csv("data_input_example/Effluent_EcoPond_Treatments.csv") %>% 
   filter(Entity_ID == 10002) %>% 
-  select(-Entity_ID, -Period_End)
+  select(-Entity_ID, -Period_End) %>% 
+  mutate(Treatment_Date = as.character(Treatment_Date))
 
 BreedingValues_df_ex <- read_csv("data_input_example/BreedingValues.csv") %>% 
   filter(Entity_ID == 10001) %>%  # the example farm is dairy, BVs only apply to sheep for now

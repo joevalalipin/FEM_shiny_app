@@ -46,7 +46,7 @@ shinyServer(function(input, output, session) {
       arrange(Transaction_Date)
 
     rhandsontable(data, rowHeaders = FALSE) %>%
-      hot_col("Transaction_Date", type = "date", dateFormat = "YYYY-MM-DD", validator = date_validator(), allowInvalid = FALSE) %>% 
+      hot_col("Transaction_Date", type = "date", dateFormat = "YYYY-MM-DD", validator = date_validator()) %>% 
       hot_col("StockClass", type = "dropdown", source = allowable_StockClass, allowInvalid = FALSE) %>% 
       hot_col("Transaction_Type", type = "dropdown", source = allowable_Transaction_Type, allowInvalid = FALSE) %>% 
       hot_col("Stock_Count", type = "numeric", validator = integer_validator, allowInvalid = FALSE)
@@ -114,7 +114,7 @@ shinyServer(function(input, output, session) {
       arrange(Treatment_Date)
     
     rhandsontable(data, rowHeaders = FALSE) %>% 
-      hot_col("Treatment_Date", type = "date", dateFormat = "YYYY-MM-DD", validator = date_validator(), allowInvalid = FALSE)
+      hot_col("Treatment_Date", type = "date", dateFormat = "YYYY-MM-DD", validator = date_validator())
     
   })
   
@@ -166,7 +166,7 @@ shinyServer(function(input, output, session) {
     output$StockRec_Movements <- renderRHandsontable({
       data <- StockRec_Movements_df_default 
       rhandsontable(data, rowHeaders = FALSE) %>%
-        hot_col("Transaction_Date", type = "date", dateFormat = "YYYY-MM-DD", allowInvalid = FALSE) %>% 
+        hot_col("Transaction_Date", type = "date", dateFormat = "YYYY-MM-DD") %>% 
         hot_col("StockClass", type = "dropdown", source = allowable_StockClass, allowInvalid = FALSE) %>% 
         hot_col("Transaction_Type", type = "dropdown", source = allowable_Transaction_Type, allowInvalid = FALSE) %>% 
         hot_col("Stock_Count", type = "numeric", validator = integer_validator, allowInvalid = FALSE)
@@ -204,7 +204,7 @@ shinyServer(function(input, output, session) {
     output$Effluent_EcoPond_Treatments <- renderRHandsontable({
       data <- Effluent_EcoPond_Treatments_df_default 
       rhandsontable(data, rowHeaders = FALSE) %>% 
-        hot_col("Treatment_Date", type = "date", dateFormat = "YYYY-MM-DD", validator = date_validator(), allowInvalid = FALSE)
+        hot_col("Treatment_Date", type = "date", dateFormat = "YYYY-MM-DD", validator = date_validator())
     })
     
     output$BreedingValues <- renderRHandsontable({
@@ -278,14 +278,14 @@ shinyServer(function(input, output, session) {
       bind_cols(FarmYear_df %>% select(Entity_ID, Period_End))
     # print(Breed_Allocation_df)
     
-    Effluent_Structure_Use_df <- hot_to_r(input$ Effluent_Structure_Use) %>% 
+    Effluent_Structure_Use_df <- hot_to_r(input$Effluent_Structure_Use) %>% 
       filter(!is.na(Month)) %>%
       bind_cols(FarmYear_df %>% select(Entity_ID, Period_End))
     # print(Effluent_Structure_Use_df)
     
     Effluent_EcoPond_Treatments_df <- hot_to_r(input$Effluent_EcoPond_Treatments) %>% 
-      filter(!is.na(Treatment_Date)) %>%
       mutate(Treatment_Date = as.Date(Treatment_Date)) %>% 
+      filter(!is.na(Treatment_Date)) %>%
       bind_cols(FarmYear_df %>% select(Entity_ID, Period_End))
     # print(Effluent_EcoPond_Treatments_df)
     
@@ -326,16 +326,47 @@ shinyServer(function(input, output, session) {
       ErrorText(e$message)  # capture error message
     })
     
+    output$ErrorMsg <- renderText({
+      if (ErrorText() != "") paste("Error:", ErrorText())
+    })
+    
     # print(smry_all_annual_by_emission_type_df)
     # print(smry_all_annual_by_gas_df)
     
     # display outputs
-    output$Output_Smry_Type <- renderRHandsontable({
-      rhandsontable(smry_all_annual_by_emission_type_df %>% select(-1,-2), rowHeaders = FALSE, readOnly = TRUE)
+    
+    smry_all_annual_df <- smry_all_annual_by_gas_df %>%
+      mutate(` ` = "Emissions", .before = CH4_total_kg) %>%
+      bind_rows(smry_all_annual_by_gas_mitign_delta_df %>%
+                  rename(CH4_total_kg = CH4_total_mitign_delta_kg,
+                         N2O_total_kg = N2O_total_mitign_delta_kg,
+                         CO2_total_kg = CO2_total_mitign_delta_kg) %>%
+                  mutate(` ` = "Mitigations", .before = CH4_total_kg)) %>%
+      select(-1,-2) %>%
+      # convert of CO2e
+      mutate(CH4_total_kg = 28 * CH4_total_kg,
+             N2O_total_kg = 265 * N2O_total_kg) %>%
+      # summarise
+      mutate(Total_kg = CH4_total_kg + N2O_total_kg + CO2_total_kg)
+
+    output$Output_Smry_All <- renderRHandsontable({
+      rhandsontable(smry_all_annual_df, rowHeaders = FALSE, readOnly = TRUE)
+    })
+
+    output$plot_Output_Smry_All <- renderPlotly({
+      smry_all_annual_df %>%
+        gather(key = "Gas", value = "Value", 2:5) %>%
+        spread(` `, Value) %>%
+        mutate(Emissions = Emissions + Mitigations) %>%
+        gather(key = ` `, value = "Emissions", 2:3) %>%
+        plot_ly(x = ~Gas, y = ~Emissions, type = "bar", color = ~` `) %>%
+        layout(xaxis = list(title = ""),
+               yaxis = list(title = ""),
+               barmode = "stack")
     })
     
-    output$ErrorMsg <- renderText({
-      if (ErrorText() != "") paste("Error:", ErrorText())
+    output$Output_Smry_Type <- renderRHandsontable({
+      rhandsontable(smry_all_annual_by_emission_type_df %>% select(-1,-2), rowHeaders = FALSE, readOnly = TRUE)
     })
     
     output$plot_Output_Smry_Type <- renderPlotly({
@@ -358,6 +389,14 @@ shinyServer(function(input, output, session) {
         plot_ly(x = ~type, y = ~`emissions in kg`, type = "bar") %>% 
         layout(xaxis = list(title = ""),
                yaxis = list(title = ""))
+    })
+    
+    output$Mitigation_Smry_Type <- renderRHandsontable({
+      rhandsontable(smry_all_annual_by_emission_type_mitign_delta_df %>% select(-1,-2), rowHeaders = FALSE, readOnly = TRUE)
+    })
+    
+    output$Mitigation_Smry_Gas <- renderRHandsontable({
+      rhandsontable(smry_all_annual_by_gas_mitign_delta_df %>% select(-1,-2), rowHeaders = FALSE, readOnly = TRUE)
     })
     
     # build the workbook and download results and inputs

@@ -4,7 +4,7 @@ shinyUI(
       "FEM Shiny App"
       ),
     titlePanel(
-    h5(HTML("This app is an R Shiny implementation of the <a href='https://github.com/Ministry-for-Primary-Industries/FarmEmissionsModel' target='_blank'>Farm Emissions R Model.</a>
+    h5(HTML("This app is an MVP R Shiny implementation of the <a href='https://github.com/Ministry-for-Primary-Industries/FarmEmissionsModel' target='_blank'>Farm Emissions R Model.</a>
              User provides farm data on the input tab, and the output tab shows the summary emissions results. See Info tab for step-by-step instructions.<br>"))
       ),
     sidebarPanel(
@@ -67,10 +67,22 @@ shinyUI(
           br(),
           br(),
           br(),
-          "Emissions_Summary_by_Type", br(), br(), rHandsontableOutput("Output_Smry_Type"), br(), plotlyOutput("plot_Output_Smry_Type"),
+          "Emissions summary in kg CO2-e", br(), br(), rHandsontableOutput("Output_Smry_All"), br(), plotlyOutput("plot_Output_Smry_All"),
           br(),
           br(),
-          "Emissions_Summary_by_Gas", br(), br(), rHandsontableOutput("Output_Smry_Gas"), br(), plotlyOutput("plot_Output_Smry_Gas"),
+          "Detailed emissions summary in kg gas",
+          br(),
+          br(),
+          "Emissions_Summary_by_Type", br(), br(), rHandsontableOutput("Output_Smry_Type"), # br(), plotlyOutput("plot_Output_Smry_Type"),
+          br(),
+          br(),
+          "Emissions_Summary_by_Gas", br(), br(), rHandsontableOutput("Output_Smry_Gas"), # br(), plotlyOutput("plot_Output_Smry_Gas"),
+          br(),
+          br(),
+          "Mitigation_Summary_by_Type", br(), br(), rHandsontableOutput("Mitigation_Smry_Type"),
+          br(),
+          br(),
+          "Mitigation_Summary_by_Gas", br(), br(), rHandsontableOutput("Mitigation_Smry_Gas"),
           br(),
           br(),
           downloadButton("DLData", "Download Data"),
@@ -92,10 +104,14 @@ shinyUI(
                       &nbsp;&nbsp;&nbsp;The model currently has limited validations, please ensure that your inputs are accurate.<br>
                       &nbsp;&nbsp;&nbsp;Columns have restrictions on what values you can enter:<br>
                       &nbsp;&nbsp;&nbsp;a. Stock count columns should be whole numbers.<br>
-                      &nbsp;&nbsp;&nbsp;b. Allocation columns should be between 1 and 0.<br>
-                      &nbsp;&nbsp;&nbsp;c. All numeric columns should be greater than or equal to 0 (except BreedingValues).<br>
-                      &nbsp;&nbsp;&nbsp;d. Date inputs should follow the format 'YYYY-MM-DD'.<br>
-                      &nbsp;&nbsp;&nbsp;e. Date column should be within the reporting period, inclusive (except EcoPond Treatment_Date).</i><br>")
+                      &nbsp;&nbsp;&nbsp;b. Allocation columns should be between 0 and 1, inclusive.<br>
+                      &nbsp;&nbsp;&nbsp;c. All numeric columns should be greater than or equal to 0 (except BreedingValues which can be between -0.4 and 1, inclusive).<br>
+                      &nbsp;&nbsp;&nbsp;d. _hrs_day columns can't be more than 24.<br>
+                      &nbsp;&nbsp;&nbsp;e. Date inputs should follow the format 'YYYY-MM-DD'.<br>
+                      &nbsp;&nbsp;&nbsp;f. Date columns should be within the reporting period, inclusive.<br>
+                      &nbsp;&nbsp;&nbsp;g. Categorical columns are limited to options in the drowpdown list.</i><br>
+                    <br><br><br<br><br>
+                    For suggestions, questions or issues, contact joe.valalipin@mpi.govt.nz or create a pull request.")
           )
         )
       )
