@@ -5,7 +5,7 @@ shinyUI(
       ),
     titlePanel(
     h5(HTML("This app is an MVP R Shiny implementation of the <a href='https://github.com/Ministry-for-Primary-Industries/FarmEmissionsModel' target='_blank'>Farm Emissions R Model.</a>
-             User provides farm data on the input tab, and the output tab shows the summary emissions results. See Info tab for step-by-step instructions.<br>"))
+             User provides farm data on the input tab, and the output tab shows the summary emissions results. See Info tab for step-by-step instructions.<br><br><br>"))
       ),
     sidebarPanel(
       width = 3,
@@ -96,8 +96,8 @@ shinyUI(
           HTML("<br>Please follow these steps.<br>
                       1. Fill out the farm details on the left hand side. The fields are pre-populated with an example farm data.<br>
                       2. Provide the required data by filling out the tables on the input tab. *<br>
-                      3. If more rows are required, right click on any cell and click 'Insert row'.<br>
-                      4. On the output tab, click 'Calculate Emissions'. A table will be generated with emissions results.<br>
+                      3. If more rows are required, right click on any cell and click 'Insert row...'. You can also remove rows.<br>
+                      4. On the output tab, click 'Calculate Emissions'. Tables and graph will be generated with emissions results.<br>
                       5. Click 'Download Data' to download results and input data. <br>
                       <br><br><br<br><br>
                       * <i>Tables are pre-populated with example data; you can remove all table contents by clicking 'Clear Tables' button at the bottom of the tab.<br>
@@ -111,7 +111,7 @@ shinyUI(
                       &nbsp;&nbsp;&nbsp;f. Date columns should be within the reporting period, inclusive.<br>
                       &nbsp;&nbsp;&nbsp;g. Categorical columns are limited to options in the drowpdown list.</i><br>
                     <br><br><br<br><br>
-                    For suggestions, questions or issues, contact joe.valalipin@mpi.govt.nz or create a pull request.")
+                    For suggestions, questions or issues, contact joe.valalipin@mpi.govt.nz or create a pull request on <a href=https://github.com/joevalalipin/FEM_shiny_app>GitHub</a>.")
           )
         )
       )
