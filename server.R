@@ -357,7 +357,7 @@ shinyServer(function(input, output, session) {
       smry_all_annual_df %>%
         gather(key = "Gas", value = "Value", 2:5) %>%
         spread(` `, Value) %>%
-        mutate(Emissions = Emissions + Mitigations) %>%
+        mutate(Mitigations = 0 - Mitigations) %>%  # for visually stacking
         gather(key = ` `, value = "Emissions", 2:3) %>%
         plot_ly(x = ~Gas, y = ~Emissions, type = "bar", color = ~` `) %>%
         layout(xaxis = list(title = ""),
