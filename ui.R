@@ -111,6 +111,7 @@ shinyUI(
                       &nbsp;&nbsp;&nbsp;f. Date columns should be within the reporting period, inclusive.<br>
                       &nbsp;&nbsp;&nbsp;g. Categorical columns are limited to options in the drowpdown list.</i><br>
                     <br><br><br<br><br>
+                    For processing multiple farms at once, use the <a href=https://019efbb7-cab8-0285-8c2a-bd005f3497a7.share.connect.posit.cloud>batch processing version</a> of the app.<br>
                     For suggestions, questions or issues, contact joe.valalipin@mpi.govt.nz or create a pull request on <a href=https://github.com/joevalalipin/FEM_shiny_app>GitHub</a>.")
           )
         )
